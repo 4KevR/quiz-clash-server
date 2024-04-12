@@ -1,0 +1,36 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres:latest
+    container_name: quiz-clash-postgres
+    restart: on-failure
+    env_file:
+      - .env
+    volumes:
+      - quiz-clash-db:/var/lib/postgresql/data
+  quiz-clash:
+    build: .
+    image: quiz-clash
+    container_name: quiz-clash
+    restart: on-failure
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:7000:80"
+    depends_on:
+      - db
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: quiz-clash-pgadmin
+    restart: on-failure
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:7001:80"
+    volumes:
+      - quiz-clash-pgadmin:/var/lib/pgadmin
+
+volumes:
+  quiz-clash-db:
+  quiz-clash-pgadmin:
