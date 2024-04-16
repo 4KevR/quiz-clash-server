@@ -2,11 +2,14 @@ import random
 import string
 from flask import Flask, request
 from flask_socketio import SocketIO, emit, join_room
-from models import Room, User
+from models import Room, User, GameCategory, Category, Question, QuestionOption
 from database.Base import db_session
+from sqlalchemy.sql.expression import func
 
 app = Flask(__name__)
 socketio = SocketIO(app)
+
+CATEGORIES_PER_USER = 4
 
 
 def generate_unique_room_code():
@@ -20,17 +23,53 @@ def generate_unique_room_code():
 
 def fetch_players_of_game(room_id):
     game_users: list[User] = User.query.filter_by(room_id=room_id).all()
-    players = {}
+    players = []
     for user in game_users:
-        players[user.name] = user.ready
-    return players
+        players.append(user.name)
+    return {"players": players}
+
+
+def fetch_categories_of_game(room_id):
+    game_categories: list[GameCategory] = GameCategory.query.filter_by(room_id=room_id).order_by(GameCategory.id).all()
+    categories = []
+    for game_category in game_categories:
+        game_category_question: Question = game_category.question
+        game_category_question_options: list[QuestionOption] = game_category_question.question_options
+        question_options = []
+        for question_option in game_category_question_options:
+            question_options.append({
+                "questionOption": question_option.question_option,
+                "isRight": question_option.is_right
+            })
+        questions = [{
+            "id": game_category_question.id,
+            "question": game_category_question.question,
+            "questionOptions": question_options
+        }]
+        json_category = {
+            "id": game_category.category_id,
+            "categoryName": game_category.category.category_name,
+            "questions": questions
+        }
+        categories.append(json_category)
+    return categories
 
 
 @app.route('/room', methods=['POST'])
 def create_room():
     room_name = request.json['room_name']
+    amount_of_players = request.json['amount_of_players']
     new_room_code = generate_unique_room_code()
-    db_session.add(Room(name=room_name, code=new_room_code, active=False))
+    new_room = Room(name=room_name, amount_of_players=amount_of_players, code=new_room_code, active=False)
+    db_session.add(new_room)
+    db_session.commit()
+    game_category_id_list = Category.query.order_by(func.random()).limit(CATEGORIES_PER_USER*amount_of_players).all()
+    for game_category in game_category_id_list:
+        random_question = Question.query.filter_by(category_id=game_category.id).order_by(func.random()).first()
+        new_category_set = GameCategory(category_id=game_category.id,
+                                        room_id=new_room.id,
+                                        question_id=random_question.id)
+        db_session.add(new_category_set)
     db_session.commit()
     return new_room_code, 201
 
@@ -58,26 +97,14 @@ def on_join(data):
     db_session.commit()
     join_room(game_room.code)
     players_of_game = fetch_players_of_game(game_room.id)
-    emit("show players", players_of_game, room=game_room.code)
+    categories_of_game = fetch_categories_of_game(game_room.id)
+    joined_room_payload = {"room_name": game_room.name, "categories": categories_of_game}
+    emit("joined room", joined_room_payload)
+    if len(game_room.users) != 1:
+        emit("show players", players_of_game, room=game_room.code)
+    if len(game_room.users) == game_room.amount_of_players:
+        emit("game start", room=game_room.code)
     return {"message": "Ok"}
-
-
-@socketio.on("ready")
-def on_ready():
-    user_sid = request.sid
-    user_to_modify: User = User.query.filter_by(sid=user_sid).first()
-    if user_to_modify:
-        user_to_modify.ready = True
-        db_session.merge(user_to_modify)
-        db_session.commit()
-
-
-@socketio.on("get room name")
-def on_get_room_name():
-    user_sid = request.sid
-    user_to_read: User = User.query.filter_by(sid=user_sid).first()
-    if user_to_read:
-        emit("receive room name", {"room_name": user_to_read.room.name})
 
 
 @socketio.on("disconnect")

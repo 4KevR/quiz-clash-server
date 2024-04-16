@@ -8,7 +8,9 @@ class Room(Base):
 
     id = Column("id", Integer, primary_key=True)
     name = Column("name", String)
+    amount_of_players = Column("amount_of_players", Integer)
     code = Column("code", String)
     active = Column("active", Boolean)
 
     users = relationship("User", back_populates="room")
+    game_categories = relationship("GameCategory", back_populates="room")
