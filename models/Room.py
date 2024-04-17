@@ -11,6 +11,7 @@ class Room(Base):
     amount_of_players = Column("amount_of_players", Integer)
     code = Column("code", String)
     active = Column("active", Boolean)
+    question_count = Column("questionCount", Integer, default=0)
 
     users = relationship("User", back_populates="room")
     game_categories = relationship("GameCategory", back_populates="room")
