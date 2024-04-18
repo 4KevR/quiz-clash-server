@@ -159,7 +159,7 @@ def on_disconnect():
             db_session.delete(user_room)
             db_session.commit()
             print(f'Room with id {user_room.id} destroyed')
-        else:
+        elif not user_room.active:
             players_of_game = fetch_players_of_game(user_room.id)
             emit("show players", players_of_game, room=user_room.code)
         print(f'Client with sid {user_sid} disconnected and deleted')
