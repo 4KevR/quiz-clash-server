@@ -1,7 +1,14 @@
 .git
 .gitignore
+.github
 .env
 .env.example
 .venv
 docker-compose.yml
 Dockerfile
+.dockerignore
+docs/quiz-clash-server.png
+docs/README.md
+README.md
+.idea/
+__pycache__/
